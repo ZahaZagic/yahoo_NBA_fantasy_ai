@@ -83,3 +83,82 @@ class TestCliEntrypoint(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSeasonDetection(unittest.TestCase):
+    """A guessed season key would silently read a different year's league."""
+
+    class _Session:
+        def __init__(self, payloads=None, exc=None):
+            self._payloads = payloads or []
+            self._exc = exc
+            self.calls = 0
+
+        def get(self, *args, **kwargs):
+            self.calls += 1
+            if self._exc:
+                raise self._exc
+            payload = self._payloads[min(self.calls - 1, len(self._payloads) - 1)]
+            return type("R", (), {"json": lambda _self: payload})()
+
+    def _query(self, session):
+        return type("Q", (), {"oauth": type("O", (), {"session": session})()})()
+
+    def test_detects_game_key_from_yahoo(self):
+        from src.main import detect_game_key_and_week
+
+        session = self._Session([
+            {"fantasy_content": {"game": [{"game_key": 475}]}},
+            {"fantasy_content": {"league": [{"current_week": 3}]}},
+        ])
+        game_key, week = detect_game_key_and_week(
+            self._query(session), "123456", "nba"
+        )
+        self.assertEqual(game_key, 475)
+        self.assertEqual(week, 3)
+
+    def test_raises_rather_than_guessing_a_season(self):
+        from src.main import detect_game_key_and_week
+
+        session = self._Session(exc=RuntimeError("network down"))
+        with self.assertRaises(RuntimeError) as ctx:
+            detect_game_key_and_week(self._query(session), "123456", "nba")
+        self.assertIn("YAHOO_GAME_ID", str(ctx.exception))
+
+    def test_403_is_reported_with_yahoo_error_text(self):
+        """An unauthorized app must not look like a network problem."""
+        from src.main import detect_game_key_and_week
+
+        class _Resp:
+            status_code = 403
+
+            def json(self):
+                return {"error": {
+                    "description": "This application is not authorized to "
+                                   "perform this action."
+                }}
+
+        class _S:
+            def get(self, *a, **k):
+                return _Resp()
+
+        query = type("Q", (), {"oauth": type("O", (), {"session": _S()})()})()
+        with self.assertRaises(RuntimeError) as ctx:
+            detect_game_key_and_week(query, "123456", "nba")
+        message = str(ctx.exception)
+        self.assertIn("403", message)
+        self.assertIn("not authorized", message)
+        self.assertIn("Fantasy Sports permission", message)
+
+    def test_uses_configured_game_id_when_detection_fails(self):
+        from src.main import detect_game_key_and_week
+
+        session = self._Session(exc=RuntimeError("network down"))
+        game_key, _ = detect_game_key_and_week(
+            self._query(session), "123456", "nba", game_id=499
+        )
+        self.assertEqual(game_key, 499)
+
+
+if __name__ == "__main__":
+    unittest.main()

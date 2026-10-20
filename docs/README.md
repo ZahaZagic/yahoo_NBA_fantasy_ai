@@ -27,7 +27,7 @@ One runnable, read-only LangGraph workflow:
 - `src/utils/yahoo_api.py` — Yahoo REST reads for roster, matchup, history, free agents; also holds the unused write helpers.
 - `src/utils/stats_parser.py` — Yahoo stat-ID mapping, response flattening, injury-status normalisation.
 - `src/utils/scheduler.py` — ESPN scoreboard lookup for teams playing on a date.
-- `tests/` — 79 offline `unittest` tests; run `python3 -m unittest discover -s tests -t .`.
+- `tests/` — 96 offline `unittest` tests; run `python3 -m unittest discover -s tests -t .`.
 
 Earlier prototypes (`fantasy_bot/`, `src/core/`, `src/agents/`, `src/tools/`), root
 debug scripts, committed bytecode, and `.idea/` were removed during the open-source

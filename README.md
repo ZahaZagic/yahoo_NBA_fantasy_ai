@@ -109,7 +109,8 @@ A few design notes:
 ## Features
 
 - 9-cat and points league support with format-specific reasoning objectives.
-- Correct IL/IL+ capacity accounting, including IL+ slots.
+- **League-agnostic lineup handling.** Slot counts, bench size and IL/IL+ capacity are read
+  from your league settings, so a 3-centre or no-Util league works without code changes.
 - GTD / INJ / Out handling with an explicit "uncertain" policy.
 - Weekly add-limit awareness to prevent churn.
 - Star protection: players below a season-rank threshold are marked untouchable.
@@ -119,7 +120,7 @@ A few design notes:
 - Structured transaction output validated by Pydantic.
 - Token usage and estimated per-run cost.
 - Per-profile, per-league configuration.
-- 79 unit tests, no network required.
+- 96 unit tests, no network required.
 
 ## Requirements
 
@@ -266,6 +267,7 @@ You can therefore run with only a `.env` file and no `config.json` at all.
 | `YAHOO_LEAGUE_ID` | yes | – | Numeric league ID |
 | `YAHOO_TEAM_ID` | yes | – | Numeric team ID |
 | `YAHOO_GAME_CODE` | no | `nba` | Yahoo sport code |
+| `YAHOO_GAME_ID` | no | auto-detected | Pin the season key (e.g. `466` = 2025-26). Only needed if detection fails |
 | `LEAGUE_TYPE` | no | `9cat` | `9cat` or `points` |
 | `LLM_API_KEY` | recommended | – | Provider key; also accepts `OPENROUTER_API_KEY` |
 | `LLM_BASE_URL` | no | `https://openrouter.ai/api/v1` | OpenAI-compatible endpoint |
@@ -292,7 +294,8 @@ or teams:
       "league_id": "123456",
       "team_id": "1",
       "game_code": "nba",
-      "league_type": "9cat"
+      "league_type": "9cat",
+      "game_id": null
     }
   }
 }

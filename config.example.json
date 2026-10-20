@@ -13,7 +13,8 @@
       "league_id": "000000",
       "team_id": "1",
       "game_code": "nba",
-      "league_type": "9cat"
+      "league_type": "9cat",
+      "game_id": null
     }
   }
 }

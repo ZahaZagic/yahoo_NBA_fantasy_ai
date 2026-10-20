@@ -125,16 +125,41 @@ def _build_query(
     )
 
 
+def _yahoo_error_detail(response: Any) -> str:
+    """Extract Yahoo's human-readable error, if the body has one."""
+    try:
+        error = response.json().get("error", {})
+        description = error.get("description")
+        if description:
+            return f" ({description})"
+    except Exception:  # noqa: BLE001 - body may not be JSON
+        pass
+    return ""
+
+
 def detect_game_key_and_week(
-    query: YahooFantasySportsQuery, league_id: str, game_code: str
+    query: YahooFantasySportsQuery,
+    league_id: str,
+    game_code: str,
+    game_id: Optional[int] = None,
 ) -> Tuple[int, int]:
     """Resolve the season game key and the league's current week.
 
-    Falls back to the current NBA game key and week 1 when Yahoo cannot be
-    reached, so a transient failure degrades instead of aborting the run.
+    The game key identifies the *season* (e.g. 466 = 2025-26), so guessing it is
+    dangerous: the wrong key silently targets a different year's league. If Yahoo
+    cannot be reached and no explicit ``game_id`` was configured, this raises
+    instead of falling back to a stale season.
+
+    Args:
+        game_id: Optional explicit season game key, from ``YAHOO_GAME_ID`` or the
+            profile's ``game_id``. Used as the fallback when detection fails.
+
+    Raises:
+        RuntimeError: when the season cannot be determined. The message carries
+            Yahoo's own error text, because the usual cause is an app that is not
+            authorized for the Fantasy Sports scope rather than a network fault.
     """
-    default_game_key = 466  # 2025-26 NBA season
-    game_key = default_game_key
+    game_key: Optional[int] = None
     current_week = 1
 
     try:
@@ -142,11 +167,31 @@ def detect_game_key_and_week(
             f"https://fantasysports.yahooapis.com/fantasy/v2/game/{game_code}",
             params={"format": "json"},
         )
+        status = getattr(response, "status_code", 200)
+        if status != 200:
+            raise RuntimeError(
+                f"Yahoo returned HTTP {status}{_yahoo_error_detail(response)}"
+            )
         game = response.json().get("fantasy_content", {}).get("game", [])
         if isinstance(game, list) and game and isinstance(game[0], dict):
-            game_key = int(game[0].get("game_key", default_game_key))
-    except Exception as exc:  # noqa: BLE001 - non-fatal
-        logger.warning("Could not resolve game key (%s); using %s", exc, default_game_key)
+            raw = game[0].get("game_key")
+            if raw is not None:
+                game_key = int(raw)
+        if game_key is None:
+            raise ValueError("game_key missing from response")
+    except Exception as exc:  # noqa: BLE001 - fall back to explicit config
+        if game_id is not None:
+            logger.warning(
+                "Could not detect the season game key (%s); using configured "
+                "game_id=%s", exc, game_id,
+            )
+            game_key = int(game_id)
+        else:
+            raise RuntimeError(
+                f"Could not determine the current Yahoo season game key: {exc}. "
+                "Check that your Yahoo app has the Fantasy Sports permission "
+                "enabled, or pin the season explicitly with YAHOO_GAME_ID."
+            ) from exc
 
     try:
         response = query.oauth.session.get(
@@ -213,7 +258,9 @@ def run_fantasy_app(profile_name: Optional[str] = None) -> Optional[Dict[str, An
         access_token=load_access_token(auth_dir),
     )
 
-    game_key, current_week = detect_game_key_and_week(query, league_id, game_code)
+    game_key, current_week = detect_game_key_and_week(
+        query, league_id, game_code, game_id=config.get("game_id")
+    )
     # The downstream helpers read `query.game_id` to build player/team keys.
     query.game_id = int(game_key)
     league_key = f"{game_key}.l.{league_id}"

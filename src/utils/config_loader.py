@@ -148,8 +148,20 @@ def load_config(
         "league_type": _env(
             "LEAGUE_TYPE", default=profile.get("league_type", DEFAULT_LEAGUE_TYPE)
         ),
+        # Optional season pin (e.g. 466 = 2025-26). Only used when the season
+        # cannot be detected from Yahoo; never guessed.
+        "game_id": _env("YAHOO_GAME_ID", default=profile.get("game_id")),
         "llm": _merge_llm(config),
     }
+
+    if resolved["game_id"] is not None:
+        try:
+            resolved["game_id"] = int(resolved["game_id"])
+        except (TypeError, ValueError):
+            raise ConfigError(
+                f"game_id/YAHOO_GAME_ID must be an integer season key, got "
+                f"'{resolved['game_id']}'."
+            )
 
     resolved["league_type"] = str(resolved["league_type"]).lower()
     if resolved["league_type"] not in VALID_LEAGUE_TYPES:

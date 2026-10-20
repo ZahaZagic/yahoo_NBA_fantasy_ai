@@ -149,6 +149,7 @@ Environment-variable mode works with no `config.json` at all.
 | `YAHOO_LEAGUE_ID` | Yes | — | Numeric league ID from the Yahoo URL. |
 | `YAHOO_TEAM_ID` | Yes | — | Numeric team ID from the Yahoo URL. |
 | `YAHOO_GAME_CODE` | No | `nba` | Yahoo sport code passed to yfpy. |
+| `YAHOO_GAME_ID` | no | auto-detected | Pin the season game key; only needed if detection fails |
 | `LEAGUE_TYPE` | No | `9cat` | Scoring model: `9cat` or `points`. |
 | `LLM_API_KEY` | No | — | Provider key. Alias: `OPENROUTER_API_KEY`. Without it the strategy step is skipped. |
 | `LLM_BASE_URL` | No | `https://openrouter.ai/api/v1` | OpenAI-compatible endpoint. |
@@ -237,7 +238,7 @@ The suite uses the standard-library `unittest` runner. It requires no credential
 makes no network calls, and completes in well under a second.
 
 ```bash
-# Full suite (79 tests)
+# Full suite (96 tests)
 python3 -m unittest discover -s tests -t .
 
 # One module
@@ -249,7 +250,7 @@ python3 -m unittest tests.test_analysis.TestAverageHistory.test_empty_history_re
 
 | Module | Tests | Covers |
 | --- | --- | --- |
-| `tests/test_config_loader.py` | 9 | Environment-only mode, config-file profile resolution, env-over-file precedence, unknown profile and malformed JSON errors, invalid `league_type`, legacy `gemini_api_key`, default LLM values. |
+| `tests/test_config_loader.py` | 12 | Environment-only mode, config-file profile resolution, env-over-file precedence, unknown profile and malformed JSON errors, invalid `league_type`, legacy `gemini_api_key`, default LLM values. |
 | `tests/test_strategy_chain.py` | 21 | JSON extraction from fenced/prose/nested responses, Pydantic transaction validation and normalisation, `StrategyLLM` construction and missing-key errors, prompt contract (required sections, constraints, league-type objective). |
 | `tests/test_analysis.py` | 17 | History averaging and comparison, live-matchup comparison, roster grouping, injury status detection, IL/IL+ capacity, waiver-pool compaction, strategy-context assembly. |
 
@@ -664,6 +665,7 @@ world-readable paths. Do not back up or sync `auth/` to a shared drive.
 | `ConfigError: config.json is not valid JSON` | Trailing comma, comment, or malformed file | Validate with `python -m json.tool config.json`. |
 | Browser never opens or consent fails with a redirect/callback error | App is not an Installed Application, or its **Redirect URI(s)** is wrong | Set Redirect URI(s) to `https://localhost:8080` and retry from a desktop session. |
 | Yahoo returns 401 / `token_rejected` after working previously | Refresh token expired or was revoked; consumer secret changed | Delete `auth/<profile>/` and re-run for a fresh consent flow; ensure `.env` holds the current key/secret. |
+| `HTTP 403: This application is not authorized to perform this action` | The Yahoo app is missing the **Fantasy Sports** permission, or permissions were changed after the token was issued | Enable Fantasy Sports -> Read in the Yahoo app, delete `auth/<profile>/`, and re-run to re-consent. Editing permissions invalidates existing grants. |
 | `oauth_problem=signature_invalid` or 403 from Yahoo | Consumer key and secret do not belong together, or contain whitespace/quotes | Re-copy both from the Yahoo app page; avoid quotes in `.env`. |
 | `TypeError: ... unexpected keyword argument 'env_file_location'` or `'save_token_data_to_env_file'` | Installed yfpy is older than 17 | `python -m pip install -U 'yfpy>=17.0.0'`; confirm with `pip show yfpy`. |
 | `ModuleNotFoundError: No module named 'state'` (or `utils`) | A module was added to `src/` without the `try: from .x import ... / except ImportError: from x import ...` pattern | Add the same dual-import guard used by `src/nodes.py` and `src/utils/yahoo_api.py`. |

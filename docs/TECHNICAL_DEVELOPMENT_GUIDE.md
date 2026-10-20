@@ -354,7 +354,7 @@ LLM JSON block
 ## Core Implementation Patterns
 
 **Why `analysis.py` is separate from `nodes.py`.** Nodes mix I/O, printing, and state merging; scoring
-is pure arithmetic over already-fetched dicts. Keeping them apart means 21 of 79 tests exercise real
+is pure arithmetic over already-fetched dicts. Keeping them apart means 21 of 96 tests exercise real
 decision logic with no Yahoo session, API key, or HTTP, and gives one authoritative definition of
 inverse-category handling, capacity arithmetic, and injury-status membership instead of duplicating
 them per node and in the prompt text.
@@ -388,16 +388,17 @@ used today because `AgentState` carries a live OAuth session.
 python3 -m unittest discover -s tests -t .
 ```
 
-Status: **79 tests, all passing** (~4.5 s, dominated by the four subprocess CLI checks; no network, no
+Status: **96 tests, all passing** (~4.5 s, dominated by the four subprocess CLI checks; no network, no
 credentials, no on-disk fixtures).
 
 | File | Tests | Coverage |
 | --- | --- | --- |
 | `tests/test_analysis.py` | 21 | Empty/malformed history, per-week averaging, makes/attempts preservation, turnover inversion, tie/no-data classification, live-comparison fallbacks, roster grouping, IL capacity arithmetic including the non-negative clamp, waiver-pool trimming and limits, context key assembly. |
-| `tests/test_config_loader.py` | 9 | Pure-env mode with no file, actionable missing-credential errors, profile reads, env-beats-file precedence, unknown-profile listing, invalid `league_type`, legacy `gemini_api_key`, malformed JSON, LLM defaults. |
+| `tests/test_config_loader.py` | 12 | Pure-env mode with no file, actionable missing-credential errors, profile reads, env-beats-file precedence, unknown-profile listing, invalid `league_type`, legacy `gemini_api_key`, malformed JSON, LLM defaults. |
 | `tests/test_strategy_chain.py` | 25 | `extract_json` (fenced, bare, prose-wrapped, nested braces in strings, broken JSON, invalid-then-valid, **last-fence-wins**), `TransactionPlan` validation (blank→None, unknown type rejection, extra keys, default empty), `StrategyLLM` construction and missing-key error without network, prompt rendering for both league types, unlimited adds, and the no-baseline / asymmetric-sample branches. |
 | `tests/test_nodes_helpers.py` | 11 | `_fetch_roster_rules` (IL vs IL+ split, defaults on failure, missing settings block, zero add-limit preserved, capacity backfill) and `_validate_transactions` (per-entry validation, schema-echo rejection, blank player, non-dict/non-list inputs). |
-| `tests/test_entrypoint.py` | 5 | Package-mode imports for every module, graph node set, and both CLI invocation styles plus the config-error exit code. |
+| `tests/test_lineup.py` | 10 | Slot layout built from league settings (including 3-centre and no-Util leagues), bench vs active distinction, default fallback, and `optimize_roster_node` start/bench output for a non-standard shape. |
+| `tests/test_entrypoint.py` | 9 | Package-mode imports for every module, graph node set, and both CLI invocation styles plus the config-error exit code and season-detection failures including a 403. |
 | `tests/test_graph_integration.py` | 8 | The compiled workflow end to end with a faked Yahoo fetch and faked LLM: node ordering, state merging, prompt content, transaction extraction, token propagation, printed report, and graceful degradation on a missing key or a provider error. |
 
 Conventions: plain `unittest`, one class per behaviour area, no network, and no mocking beyond
@@ -422,9 +423,9 @@ no cap), while a *failed* read returns `DEFAULT_ROSTER_RULES` instead of zeros �
 unlimited adds" during an API outage would actively mislead the prompt. `il_slots_available` still counts
 `il` but not `il_plus`, understating capacity in IL+ leagues, though the prompt uses `roster_rules`
 directly and is unaffected. Both `optimize_roster_node` and `analyze_injuries_node` now read
-`roster_rules["standard_slots"]` rather than a literal `13`. The real remaining hardcode is
-`detect_game_key_and_week`: its fallback of key `466` / week `1` will silently mis-target a future season,
-and must be bumped (or made authoritative) each September.
+`roster_rules["standard_slots"]` rather than a literal `13`. The season key is
+resolved from Yahoo on every run; if that fails there is **no silent guess** — the run aborts with an
+actionable error unless `YAHOO_GAME_ID` pins the season explicitly.
 
 **Free-agent intake is bounded and names are decorated.** `get_free_agents_by_date` fetches three
 batches of 25 per sort, so at most 75 players per sort are considered before health and games-today

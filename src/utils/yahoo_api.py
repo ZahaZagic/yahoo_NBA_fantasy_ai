@@ -16,10 +16,14 @@ def get_team_roster(query, league_id, team_id_num, team_name=None):
     title = f" ROSTER: {team_name} (Team {team_id_num}) " if team_name else f" ROSTER: Team {team_id_num} "
     print(f"\n{'='*30}\n{title}\n{'='*30}")
     try:
-        game_key = query.game_id 
+        game_key = query.game_id
         if not game_key or not str(game_key).isdigit() or int(game_key) < 400:
-            game_key = "466" 
-        
+            # Guessing the season would silently read a different year's league.
+            raise ValueError(
+                "query.game_id is not set; the season game key must be resolved "
+                "before fetching a roster."
+            )
+
         full_team_key = f"{game_key}.l.{league_id}.t.{team_id_num}"
         # 1. Fetch Roster with Stats
         roster_url = f"https://fantasysports.yahooapis.com/fantasy/v2/team/{full_team_key}/roster/players/stats;type=season?format=json"

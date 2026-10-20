@@ -271,6 +271,7 @@ def build_strategy_context(state: Dict[str, Any]) -> Dict[str, Any]:
         "league_type": str(state.get("league_type", "9cat")).lower(),
         "roster_rules": roster_rules,
         "capacity": capacity,
+        "active_slots": roster_rules.get("active_slots") or [],
         "live_comparison": live_comparison,
         "history_comparison": compare_history(my_average, opponent_average),
         "history_weeks": {

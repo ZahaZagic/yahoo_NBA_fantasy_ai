@@ -127,6 +127,27 @@ class TestConfigFileMode(ConfigTestCase):
             with self.assertRaises(ConfigError):
                 load_config(config_path=path)
 
+    def test_game_id_is_parsed_as_integer(self):
+        self.clear_env()
+        path = self.write_config(self.payload())
+        with mock.patch.dict(os.environ, {"YAHOO_GAME_ID": "475"}):
+            config = load_config(config_path=path)
+        self.assertEqual(config["game_id"], 475)
+
+    def test_game_id_absent_is_none(self):
+        self.clear_env()
+        path = self.write_config(self.payload())
+        with mock.patch.dict(os.environ, {}):
+            config = load_config(config_path=path)
+        self.assertIsNone(config["game_id"])
+
+    def test_non_numeric_game_id_is_rejected(self):
+        self.clear_env()
+        path = self.write_config(self.payload())
+        with mock.patch.dict(os.environ, {"YAHOO_GAME_ID": "nba-2026"}):
+            with self.assertRaises(ConfigError):
+                load_config(config_path=path)
+
     def test_llm_defaults_are_applied(self):
         self.clear_env()
         path = self.write_config(self.payload())

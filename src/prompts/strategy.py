@@ -146,6 +146,16 @@ def _json_block(value: Any) -> str:
     return json.dumps(value, indent=2, ensure_ascii=False)
 
 
+def _slot_summary(context: Dict[str, Any]) -> str:
+    """Render the league's real lineup shape, e.g. ``PG x1, G x1, C x2, Util x2``."""
+    slots = context.get("active_slots") or []
+    parts = [
+        f"{entry.get('position')} x{entry.get('count')}"
+        for entry in slots
+        if entry.get("position") and entry.get("count")
+    ]
+    return ", ".join(parts) if parts else "unknown (fall back to a standard 10-slot lineup)"
+
 def _history_block(context: Dict[str, Any]) -> str:
     """Render the season-baseline section, including the no-baseline case.
 
@@ -214,6 +224,7 @@ League type: {league_type.upper()}
 - Adds are a limited resource; churn has a cost.
 
 ## 1. ROSTER RULES AND CURRENT CAPACITY
+- Active lineup slots: {_slot_summary(context)}
 - Standard roster capacity: {capacity.get('total_standard')} slots
 - Occupied standard slots: {capacity.get('used_standard')}
 - OPEN ROSTER SPOTS: {capacity.get('open_standard')}

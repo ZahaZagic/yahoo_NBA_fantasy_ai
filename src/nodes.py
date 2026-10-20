@@ -38,8 +38,29 @@ except ImportError:  # script imports (python src/main.py)
 
 logger = logging.getLogger(__name__)
 
+#: Yahoo slot names that are not part of the assignable lineup.
+NON_ACTIVE_SLOTS = frozenset({"BN", "NA", "IL", "IL+", "IL-"})
+
+#: Typical Yahoo basketball layout, used only when league settings are unreadable.
+DEFAULT_SLOT_LAYOUT = (
+    ("PG", 1), ("SG", 1), ("G", 1),
+    ("SF", 1), ("PF", 1), ("F", 1),
+    ("C", 2), ("Util", 2),
+)
+
+#: Slot groups filled in priority order by the lineup optimiser.
+SPECIALIST_SLOTS = ("PG", "SG", "SF", "PF", "C")
+FLEX_SLOTS = ("G", "F")
+
 #: Fallback roster shape when the league settings endpoint is unavailable.
-DEFAULT_ROSTER_RULES = {"il": 0, "il_plus": 0, "max_adds": 7, "standard_slots": 13}
+DEFAULT_ROSTER_RULES = {
+    "il": 0,
+    "il_plus": 0,
+    "max_adds": 7,
+    "standard_slots": 13,
+    "bench_slots": 3,
+    "active_slots": [{"position": pos, "count": n} for pos, n in DEFAULT_SLOT_LAYOUT],
+}
 
 #: Approximate USD per 1M tokens, used only for the human-facing cost estimate.
 MODEL_COST_PER_MILLION = {
@@ -50,15 +71,28 @@ MODEL_COST_PER_MILLION = {
 
 
 def _fetch_roster_rules(query, league_key: str) -> dict:
-    """Read IL/IL+ slot counts and the weekly add limit from league settings.
+    """Read the league's slot layout, IL capacity and weekly add limit.
 
-    A *successful* read uses the league's real values (so a league with no add
-    limit keeps ``max_adds: 0``, rendered as "unlimited"). A *failed* read falls
-    back to :data:`DEFAULT_ROSTER_RULES` rather than zeros, because reporting
-    "0 slots / unlimited adds" during an API outage would actively mislead the
-    prompt.
+    The per-position counts matter: they define the league's actual lineup shape
+    (how many centres, whether there is a Util slot, and so on). Collapsing them
+    into a single total would silently apply one league's layout to every other
+    league, so ``active_slots`` is preserved verbatim.
+
+    ``standard_slots`` includes bench slots, matching the "roster capacity" the
+    prompt reports. A *successful* read uses the league's real values (so a league
+    with no add limit keeps ``max_adds: 0``, rendered as "unlimited"). A *failed*
+    read falls back to :data:`DEFAULT_ROSTER_RULES` rather than zeros, because
+    reporting "0 slots / unlimited adds" during an API outage would actively
+    mislead the prompt.
     """
-    rules = {"il": 0, "il_plus": 0, "max_adds": 0, "standard_slots": 0}
+    rules = {
+        "il": 0,
+        "il_plus": 0,
+        "max_adds": 0,
+        "standard_slots": 0,
+        "bench_slots": 0,
+        "active_slots": [],
+    }
     url = (
         "https://fantasysports.yahooapis.com/fantasy/v2/league/"
         f"{league_key}/settings?format=json"
@@ -81,16 +115,33 @@ def _fetch_roster_rules(query, league_key: str) -> dict:
                     rules["il"] = count
                 elif position == "IL+":
                     rules["il_plus"] = count
+                elif position == "BN":
+                    rules["bench_slots"] += count
+                    rules["standard_slots"] += count
+                elif position in NON_ACTIVE_SLOTS:
+                    continue  # NA / IL- and friends are not roster capacity
                 else:
+                    rules["active_slots"].append(
+                        {"position": position, "count": count}
+                    )
                     rules["standard_slots"] += count
         if not parsed_settings:
             raise ValueError("settings block missing from league response")
-        if rules["standard_slots"] == 0:
-            # Some leagues omit roster_positions; keep a sane capacity.
+        if not rules["active_slots"]:
+            # Some leagues omit roster_positions; fall back to a whole default
+            # shape so capacity and layout stay consistent with each other.
+            rules["active_slots"] = [
+                {"position": pos, "count": n} for pos, n in DEFAULT_SLOT_LAYOUT
+            ]
             rules["standard_slots"] = DEFAULT_ROSTER_RULES["standard_slots"]
+            rules["bench_slots"] = (
+                rules["bench_slots"] or DEFAULT_ROSTER_RULES["bench_slots"]
+            )
     except Exception as exc:  # noqa: BLE001 - settings are best-effort
         logger.warning("Could not read league settings (%s); using defaults", exc)
-        return dict(DEFAULT_ROSTER_RULES)
+        return {**DEFAULT_ROSTER_RULES, "active_slots": [
+            dict(entry) for entry in DEFAULT_ROSTER_RULES["active_slots"]
+        ]}
     return rules
 
 
@@ -216,15 +267,45 @@ def analyze_injuries_node(state: AgentState) -> dict:
     }
 
 
+def build_slot_map(roster_rules: dict) -> dict:
+    """Build ``{slot_name: [None] * count}`` from the league's own slot layout.
+
+    Falls back to :data:`DEFAULT_SLOT_LAYOUT` only when the layout is unknown, so
+    a league with three centres or no Util slot is handled correctly instead of
+    being forced into one hardcoded shape.
+    """
+    layout = (roster_rules or {}).get("active_slots") or [
+        {"position": pos, "count": n} for pos, n in DEFAULT_SLOT_LAYOUT
+    ]
+    slots: dict = {}
+    for entry in layout:
+        position = entry.get("position")
+        count = int(entry.get("count", 0) or 0)
+        if not position or count <= 0:
+            continue
+        slots[position] = [None] * count
+    return slots
+
+
+def _slot_groups(slots: dict) -> tuple:
+    """Split slot names into (specialist, flex, other) fill order."""
+    specialist = [s for s in SPECIALIST_SLOTS if s in slots]
+    flex = [s for s in FLEX_SLOTS if s in slots]
+    other = [s for s in slots if s not in specialist and s not in flex]
+    return specialist, flex, other
+
+
 def optimize_roster_node(state: AgentState) -> dict:
     """Greedily assign today's best lineup (read-only; prints the plan).
 
-    Assignment is a three-pass greedy fill: specialist slots first, then the
-    G/F flex slots, then Util. Ties break on points per game.
+    Three-pass greedy fill: the league's specialist slots first, then its G/F flex
+    slots, then everything else (Util and any custom slot). Ties break on points
+    per game. The slot layout comes from league settings, never from a constant.
     """
     logger.info("lineup: computing optimal assignment for today")
     roster = state["roster"]
-    standard_slots = int((state.get("roster_rules") or {}).get("standard_slots", 13) or 13)
+    rules = state.get("roster_rules") or {}
+    standard_slots = int(rules.get("standard_slots", 13) or 13)
 
     eligible = [
         p
@@ -242,12 +323,11 @@ def optimize_roster_node(state: AgentState) -> dict:
 
     ranked = sorted(eligible, key=value, reverse=True)
 
-    slots: dict = {
-        "PG": None, "SG": None, "G": None,
-        "SF": None, "PF": None, "F": None,
-        "C": [None, None],
-        "Util": [None, None],
-    }
+    slots = build_slot_map(rules)
+    if not slots:
+        logger.warning("lineup: no slot layout available; skipping optimisation")
+        return {"debug_logs": state["debug_logs"] + ["lineup: no slot layout"]}
+
     assigned: set = set()
 
     def try_assign(player: dict, slot: str) -> bool:
@@ -264,40 +344,27 @@ def optimize_roster_node(state: AgentState) -> dict:
         if not eligible_for_slot:
             return False
 
-        current = slots[slot]
-        if isinstance(current, list):
-            if None in current:
-                current[current.index(None)] = player
-                assigned.add(player_id)
-                return True
-            return False
-        if current is None:
-            slots[slot] = player
+        occupants = slots[slot]
+        if None in occupants:
+            occupants[occupants.index(None)] = player
             assigned.add(player_id)
             return True
         return False
 
-    for player in ranked:
-        for slot in ("PG", "SG", "SF", "PF", "C"):
-            if try_assign(player, slot):
-                break
+    specialist, flex, other = _slot_groups(slots)
 
-    for player in ranked:
-        if player.get("player_id") in assigned:
-            continue
-        for slot in ("G", "F"):
-            if try_assign(player, slot):
-                break
-
-    for player in ranked:
-        if player.get("player_id") in assigned:
-            continue
-        try_assign(player, "Util")
+    for group in (specialist, flex, other):
+        for player in ranked:
+            if player.get("player_id") in assigned:
+                continue
+            for slot in group:
+                if try_assign(player, slot):
+                    break
 
     position_map: dict = {}
     instructions: list[str] = []
-    for slot, occupant in slots.items():
-        for player in occupant if isinstance(occupant, list) else [occupant]:
+    for slot, occupants in slots.items():
+        for player in occupants:
             if not player:
                 continue
             position_map[player["player_id"]] = slot
