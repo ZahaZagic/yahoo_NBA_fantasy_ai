@@ -2,16 +2,14 @@
 
 Index of the project documentation. Start with the root [README](../README.md) to
 install and run the agent; this folder covers domain rules, implementation detail,
-operations, and review history.
+and operations.
 
 ## Guides
 
 - [Root README](../README.md) — install, credential setup, quickstart, usage, configuration reference. Start here.
 - [Project Business Logic](PROJECT_BUSINESS_LOGIC.md) — the problem, target user, and roster/IL/waiver decision rules. For domain and product readers.
 - [Technical Development Guide](TECHNICAL_DEVELOPMENT_GUIDE.md) — module responsibilities, data flow through the graph, and implementation notes. For contributors.
-- [Operations, Testing, and Deployment](OPERATIONS_TESTING_DEPLOYMENT.md) — prerequisites, full configuration tables, first run, tests, smoke checks, deployment, logging, and the security incident and rotation procedure. For operators.
-- [Code Review and Remediation Log](CODE_REVIEW.md) — audit findings by severity, what was fixed, what remains open. For reviewers.
-- [Resume Bullets](RESUME_BULLETS.md) — compact project descriptions for portfolio use.
+- [Operations, Testing, and Deployment](OPERATIONS_TESTING_DEPLOYMENT.md) — prerequisites, full configuration tables, first run, tests, smoke checks, deployment, logging, and a security checklist. For operators.
 
 ## Current Project Shape
 

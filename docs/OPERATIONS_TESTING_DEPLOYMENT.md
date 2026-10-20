@@ -554,34 +554,36 @@ provider-specific input/output pricing.
 
 ## Security Review
 
-### Incident summary
+### Credential hygiene
 
-An earlier revision of this repository committed the Yahoo consumer key and
-consumer secret, cached OAuth access/refresh tokens, and the LLM API key. The same
-values were hardcoded in scratch scripts. Those scripts have been deleted, and
-`.env`, `config.json`, and `auth/*` are now ignored. **The values remain in git
-history and must be treated as compromised.**
+This project needs two long-lived credentials: a Yahoo consumer key/secret and an
+LLM API key. Both belong in the git-ignored `.env`, and nowhere else — not in
+`config.json`, not in a helper script, not in a notebook.
 
-Ignoring a file does not remove it from the index. Verify the current tree:
+Check the working tree before you push:
 
 ```bash
 git check-ignore -v .env config.json auth/token.json
 git ls-files | grep -E '(^|/)(\.env|config\.json|token\.json|private\.json)$'
 ```
 
-The second command should print nothing. If it lists secret files, untrack exactly
-those paths and commit:
+The second command must print nothing. Ignoring a file does not untrack it, so if
+it ever lists a secret file, untrack exactly those paths and commit:
 
 ```bash
 git rm --cached <paths printed above>
 git commit -m "chore: stop tracking local secrets"
 ```
 
-### Rotate the affected credentials now
+Untracking removes a file from the *tree*, not from *history*. If a credential has
+ever been committed, pushed, pasted into an issue, or captured in a screenshot,
+treat it as compromised and rotate it.
+
+### If a credential is exposed
 
 Yahoo:
 
-1. Open the Yahoo Developer dashboard and **delete** the exposed app. This
+1. Open the Yahoo Developer dashboard and **delete** the affected app. This
    invalidates the consumer key/secret and every token issued through it.
 2. Create a replacement app with **Fantasy Sports -> Read** and Redirect URI(s)
    `https://localhost:8080`.

@@ -14,7 +14,7 @@ fantasy/
 ├── config.example.json          # template; copy to config.json (git-ignored)
 ├── .env.example                 # template; copy to .env (git-ignored)
 ├── auth/.gitkeep                # OAuth artefacts live here, never committed
-├── docs/                        # README, business logic, ops, resume, this guide
+├── docs/                        # README, business logic, ops, this guide
 ├── src/
 │   ├── main.py                  # CLI entry point + graph assembly
 │   ├── nodes.py                 # 5 LangGraph nodes + fetch helpers
@@ -35,10 +35,6 @@ python src/main.py --profile my_account [--verbose]
 
 Third-party imports are limited to `yfpy>=17.0.0`, `requests`, `python-dotenv`, `langgraph`,
 `langchain-core`, `langchain-openai`, `pandas`, `tabulate`, and `pydantic>=2.0.0`.
-
-**History.** An earlier packaged prototype, an unused class-based agent scaffold (placeholder
-`core`/`agents`/`tools` modules), one-off debug scripts, and committed bytecode were removed. They are
-recoverable from git history and are not part of the current tree.
 
 ## Architecture
 
