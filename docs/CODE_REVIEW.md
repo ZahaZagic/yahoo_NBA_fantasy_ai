@@ -25,7 +25,7 @@ It was, however, not runnable and not publishable:
 - There was no `.gitignore`, no root `README`, no `requirements.txt`, and no tests.
 
 After this pass the repository has one runnable implementation, one configuration
-path, validated LLM output, a documented setup flow, and a 72-test suite.
+path, validated LLM output, a documented setup flow, and a 79-test suite.
 
 ## 2. Technology stack: a correction
 
@@ -236,8 +236,9 @@ existed only inside the deleted `fantasy_bot/`.
 | M7 | `debug_player_full.py` imported `LEAGUE_ID` from `utils.yahoo_api`, which no longer defines it — the script raised `ImportError` | **Fixed by deletion** — superseded by the main pipeline |
 | M8 | Roster mutation was unreachable dead code (`update_roster_positions` call commented out) but still shipped, with a bug (C3) | **Fixed** — kept, corrected, and explicitly documented as not wired in. The tool is read-only by design |
 | M9 | Unused imports (`pandas`, `tabulate` in `nodes.py`); inconsistent module conventions | **Fixed** |
-| M10 | No tests | **Fixed** — 72 unit tests, no network required |
+| M10 | No tests | **Fixed** — 79 unit tests, no network required |
 | M11 | No `LICENSE` | **Fixed** — GPL-3.0, chosen to match the GPL-3.0 `yfpy` dependency rather than the MIT/Apache default |
+| M12 | New season / week 1: `compare_history` and `compare_live` classified a zero delta as `LOST`, so with no completed weeks the prompt asserted the team was losing all 9 categories at `Diff 0.0`; volume stats also lost their `INFO` status when no history existed | **Fixed** — zero delta is now `TIED`; an entirely absent baseline returns an empty block that the prompt renders as `NO SEASON BASELINE AVAILABLE`; a metric present on one side only is `NO_DATA` and is never compared against an implicit zero |
 
 ## 6. What the strategy prompt looks like now
 
@@ -305,7 +306,7 @@ and 6 secret-bearing JSON files from tracking.
 
 Added: `README.md`, `LICENSE` (GPL-3.0), `requirements.txt`, `.gitignore`,
 `.env.example`, `config.example.json`, `auth/.gitkeep`, `src/analysis.py`, `src/schemas.py`,
-`src/prompts/`, `src/utils/llm.py`, `tests/` (72 tests), `docs/CODE_REVIEW.md`.
+`src/prompts/`, `src/utils/llm.py`, `tests/` (79 tests), `docs/CODE_REVIEW.md`.
 
 Rewritten: `src/main.py`, `src/nodes.py`, `src/state.py`,
 `src/utils/config_loader.py`, `src/prompts/`, `src/utils/llm.py`, and all five

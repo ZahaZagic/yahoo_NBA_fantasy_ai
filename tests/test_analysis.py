@@ -48,6 +48,20 @@ class TestCompareHistory(unittest.TestCase):
         result = compare_history({"FGM/A": "10/20"}, {"FGM/A": "9/19"})
         self.assertEqual(result["FGM/A"]["Status"], "INFO")
 
+    def test_no_history_either_side_yields_empty_block(self):
+        """Start of season: no completed weeks means no comparison at all."""
+        self.assertEqual(compare_history({}, {}), {})
+
+    def test_metric_missing_on_one_side_is_no_data(self):
+        """Must not compare a present value against an implicit zero."""
+        result = compare_history({"PTS": 500}, {})
+        self.assertEqual(result["PTS"]["Status"], "NO_DATA")
+        self.assertNotIn("Diff", result["PTS"])
+
+    def test_equal_averages_are_tied(self):
+        result = compare_history({"PTS": 480}, {"PTS": 480})
+        self.assertEqual(result["PTS"]["Status"], "TIED")
+
 
 class TestCompareLive(unittest.TestCase):
     ROWS = [
@@ -67,6 +81,16 @@ class TestCompareLive(unittest.TestCase):
     def test_missing_team_id_defaults_to_first_row(self):
         result = compare_live(self.ROWS, "does-not-exist")
         self.assertEqual(result["PTS"]["Me"], 210.0)
+
+    def test_zero_totals_are_tied_not_lost(self):
+        """Week start: 0-0 must not be reported as losing every category."""
+        rows = [
+            {"team_id": "13", "PTS": 0, "REB": 0},
+            {"team_id": "7", "PTS": 0, "REB": 0},
+        ]
+        result = compare_live(rows, "13")
+        self.assertEqual(result["PTS"]["Status"], "TIED")
+        self.assertEqual(result["REB"]["Status"], "TIED")
 
 
 class TestRosterClassification(unittest.TestCase):

@@ -237,7 +237,7 @@ The suite uses the standard-library `unittest` runner. It requires no credential
 makes no network calls, and completes in well under a second.
 
 ```bash
-# Full suite (72 tests)
+# Full suite (79 tests)
 python3 -m unittest discover -s tests -t .
 
 # One module
@@ -670,6 +670,7 @@ world-readable paths. Do not back up or sync `auth/` to a shared drive.
 | `[LLM ERROR] ... 429` / `402` / rate limit or insufficient credit | Provider throttling or empty balance | 429/5xx are retried with backoff up to `max_retries`; add credit, wait, or switch `LLM_MODEL`. 402 is a billing failure. Non-fatal. |
 | Free-agent pool is empty on a game day | ESPN scoreboard unreachable, or every candidate is injured/on waivers | Check ESPN reachability; the code skips status other than `OK` and `W` (waivers), and only scans the top 75. |
 | No games today and no streaming adds proposed | ESPN returns no events; all free agents are filtered out | Expected on off-days and breaks. Re-run on a game day. |
+| Plan says `NO SEASON BASELINE AVAILABLE` and ranks players with little justification | Week 1, or a league with no completed weeks: there is no history to compare against, and player stats are still zero | Expected. The agent states the gap explicitly rather than inventing a baseline; re-run after a few weeks have completed. |
 | Week shown as 1 / game key 466 unexpectedly | Yahoo game or league-settings lookup failed; fallback used | Check connectivity and the `YAHOO_LEAGUE_ID`; the warning is logged. |
 | Plan prints with `[LLM ERROR]` instead of AI analysis | No `LLM_API_KEY`, or the configured provider rejected the request | Set the key and re-run. The deterministic plan is still valid. |
 

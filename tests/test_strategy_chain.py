@@ -147,6 +147,32 @@ class TestPrompts(unittest.TestCase):
         prompt = build_human_prompt(context, "d")
         self.assertIn("remaining: unlimited", prompt)
 
+    def test_no_season_baseline_is_stated_explicitly(self):
+        """Week 1 / new season must not render a table of zeros."""
+        context = dict(
+            self.CONTEXT,
+            history_comparison={},
+            history_weeks={"my": 0, "opp": 0},
+        )
+        prompt = build_human_prompt(context, "October 21, 2026")
+        self.assertIn("NO SEASON BASELINE AVAILABLE", prompt)
+        self.assertIn("Do not invent a baseline", prompt)
+
+    def test_asymmetric_history_is_flagged_as_weak_evidence(self):
+        context = dict(
+            self.CONTEXT,
+            history_comparison={"PTS": {"Me": 500, "Opp": None, "Status": "NO_DATA"}},
+            history_weeks={"my": 4, "opp": 0},
+        )
+        prompt = build_human_prompt(context, "d")
+        self.assertIn("CAUTION", prompt)
+        self.assertIn("weak evidence", prompt)
+        self.assertIn("NO_DATA", prompt)
+
+    def test_system_prompt_forbids_inferring_from_missing_data(self):
+        self.assertIn("NO EVIDENCE IS NOT A WEAKNESS", SYSTEM_PROMPT)
+        self.assertIn("has not started", SYSTEM_PROMPT)
+
 
 if __name__ == "__main__":
     unittest.main()

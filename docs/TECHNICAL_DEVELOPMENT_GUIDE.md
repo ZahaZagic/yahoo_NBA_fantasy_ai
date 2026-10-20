@@ -358,7 +358,7 @@ LLM JSON block
 ## Core Implementation Patterns
 
 **Why `analysis.py` is separate from `nodes.py`.** Nodes mix I/O, printing, and state merging; scoring
-is pure arithmetic over already-fetched dicts. Keeping them apart means 17 of 72 tests exercise real
+is pure arithmetic over already-fetched dicts. Keeping them apart means 21 of 79 tests exercise real
 decision logic with no Yahoo session, API key, or HTTP, and gives one authoritative definition of
 inverse-category handling, capacity arithmetic, and injury-status membership instead of duplicating
 them per node and in the prompt text.
@@ -392,14 +392,14 @@ used today because `AgentState` carries a live OAuth session.
 python3 -m unittest discover -s tests -t .
 ```
 
-Status: **72 tests, all passing** (~4.5 s, dominated by the four subprocess CLI checks; no network, no
+Status: **79 tests, all passing** (~4.5 s, dominated by the four subprocess CLI checks; no network, no
 credentials, no on-disk fixtures).
 
 | File | Tests | Coverage |
 | --- | --- | --- |
-| `tests/test_analysis.py` | 17 | Empty/malformed history, per-week averaging, makes/attempts preservation, turnover inversion, live-comparison fallbacks, roster grouping, IL capacity arithmetic including the non-negative clamp, waiver-pool trimming and limits, context key assembly. |
+| `tests/test_analysis.py` | 21 | Empty/malformed history, per-week averaging, makes/attempts preservation, turnover inversion, tie/no-data classification, live-comparison fallbacks, roster grouping, IL capacity arithmetic including the non-negative clamp, waiver-pool trimming and limits, context key assembly. |
 | `tests/test_config_loader.py` | 9 | Pure-env mode with no file, actionable missing-credential errors, profile reads, env-beats-file precedence, unknown-profile listing, invalid `league_type`, legacy `gemini_api_key`, malformed JSON, LLM defaults. |
-| `tests/test_strategy_chain.py` | 22 | `extract_json` (fenced, bare, prose-wrapped, nested braces in strings, broken JSON, invalid-then-valid, **last-fence-wins**), `TransactionPlan` validation (blank→None, unknown type rejection, extra keys, default empty), `StrategyLLM` construction and missing-key error without network, prompt rendering for both league types and unlimited adds. |
+| `tests/test_strategy_chain.py` | 25 | `extract_json` (fenced, bare, prose-wrapped, nested braces in strings, broken JSON, invalid-then-valid, **last-fence-wins**), `TransactionPlan` validation (blank→None, unknown type rejection, extra keys, default empty), `StrategyLLM` construction and missing-key error without network, prompt rendering for both league types, unlimited adds, and the no-baseline / asymmetric-sample branches. |
 | `tests/test_nodes_helpers.py` | 11 | `_fetch_roster_rules` (IL vs IL+ split, defaults on failure, missing settings block, zero add-limit preserved, capacity backfill) and `_validate_transactions` (per-entry validation, schema-echo rejection, blank player, non-dict/non-list inputs). |
 | `tests/test_entrypoint.py` | 5 | Package-mode imports for every module, graph node set, and both CLI invocation styles plus the config-error exit code. |
 | `tests/test_graph_integration.py` | 8 | The compiled workflow end to end with a faked Yahoo fetch and faked LLM: node ordering, state merging, prompt content, transaction extraction, token propagation, printed report, and graceful degradation on a missing key or a provider error. |
@@ -450,6 +450,17 @@ usable plan. Residual risk remains because "no valid transactions" and "no trans
 indistinguishable in the output — a malformed plan still renders as a clean empty plan. Injury timelines
 and availability are model assertions over possibly stale data. The cost figure is approximate:
 `MODEL_COST_PER_MILLION` knows three Gemini ids, defaults to `0.10`, and ignores cache/tiered pricing.
+
+**Season boundaries are the weakest state.** At week 1 there are no completed weeks, so
+`average_history` returns `{}` and `compare_history` returns `{}`; the prompt then prints
+`NO SEASON BASELINE AVAILABLE` instead of a table of zeros. Earlier this was handled by
+comparing against implicit zeros, which classified every category as **LOST with Diff 0.0** and
+told the model it was behind everywhere before a game had been played. Two rules now hold:
+a zero delta is `TIED`, not `LOST`, and a metric present on only one side is `NO_DATA`, never
+compared against a phantom zero. Roster stats are also all zero until games are played, so the
+greedy lineup tie-break degenerates to list order in week 1 — harmless, but it means early-season
+lineup output carries little signal. The September hazard that remains is `detect_game_key_and_week`'s
+`466` fallback.
 
 **Dead declarations and no checkpointer.** `state.fa_tomorrow` and `state.today_str` are declared and
 initialised but never read. Because `AgentState` holds a live `YahooFantasySportsQuery`, the graph cannot

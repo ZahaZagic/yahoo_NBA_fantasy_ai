@@ -81,6 +81,14 @@ def average_history(history: Optional[Sequence[Dict[str, Any]]]) -> Dict[str, An
 
 
 def _verdict(diff: float, metric: str) -> str:
+    """Classify a delta. A zero delta is a tie, not a loss.
+
+    Treating 0 as "LOST" would tell the model it is behind in every category at
+    the start of a week, which is exactly the state at the beginning of a new
+    season.
+    """
+    if abs(diff) < 1e-9:
+        return "TIED"
     won = diff < 0 if metric in INVERSE_CATEGORIES else diff > 0
     return "WON" if won else "LOST"
 
@@ -88,14 +96,31 @@ def _verdict(diff: float, metric: str) -> str:
 def compare_history(
     my_average: Dict[str, Any], opponent_average: Dict[str, Any]
 ) -> Dict[str, Dict[str, Any]]:
-    """Compare season-long weekly averages against the opponent's."""
+    """Compare season-long weekly averages against the opponent's.
+
+    Returns an empty dict when neither side has a completed week, which lets the
+    prompt say "no baseline yet" instead of emitting a wall of meaningless zeros.
+    A metric that only one side has is reported as ``NO_DATA`` rather than being
+    compared against an implicit zero.
+    """
+    if not my_average and not opponent_average:
+        return {}
+
     comparison: Dict[str, Dict[str, Any]] = {}
     for metric in HISTORY_METRICS:
-        mine = my_average.get(metric, 0)
-        theirs = opponent_average.get(metric, 0)
-        if isinstance(mine, str):
+        if metric not in my_average and metric not in opponent_average:
+            comparison[metric] = {"Status": "NO_DATA"}
+            continue
+
+        mine = my_average.get(metric)
+        theirs = opponent_average.get(metric)
+        if mine is None or theirs is None:
+            comparison[metric] = {"Me": mine, "Opp": theirs, "Status": "NO_DATA"}
+            continue
+        if isinstance(mine, str) or isinstance(theirs, str):
             comparison[metric] = {"Me": mine, "Opp": theirs, "Status": "INFO"}
             continue
+
         diff = round(_to_float(mine) - _to_float(theirs), 3)
         comparison[metric] = {
             "Me": mine,

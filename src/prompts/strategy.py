@@ -83,6 +83,14 @@ Streamer / Filler > 130 or unranked. A player whose strength is one category \
   - Swing: realistically flippable this week -- prioritize these.
   - Lost: not recoverable this week -- do not spend adds chasing it.
 * Always report the numeric +/- delta that justifies the label.
+* NO EVIDENCE IS NOT A WEAKNESS. If the season block says NO SEASON BASELINE, or a \
+metric's status is TIED / NO_DATA, you have no information about it. Say so plainly \
+and do not label that category Core/Swing/Lost, quote a delta, or claim the roster \
+is deficient in it. This is the normal state at the start of a season and in week 1 \
+of a matchup -- reason instead from roster composition, games remaining, and the \
+live score.
+* A TIED live matchup with all-zero totals means the scoring period has not started. \
+Do not read it as a 0-0 loss.
 * GTD means UNCERTAIN. Recommend activating a GTD player only if they play today, \
 and prefer parking a confirmed Out (INJ) player in that IL slot instead.
 
@@ -138,6 +146,42 @@ def _json_block(value: Any) -> str:
     return json.dumps(value, indent=2, ensure_ascii=False)
 
 
+def _history_block(context: Dict[str, Any]) -> str:
+    """Render the season-baseline section, including the no-baseline case.
+
+    At the start of a season there are no completed weeks, so there is nothing to
+    compare. Saying so explicitly is far better than handing the model a table of
+    zeros, which it would read as "losing every category".
+    """
+    weeks = context.get("history_weeks") or {}
+    mine = int(weeks.get("my", 0) or 0)
+    theirs = int(weeks.get("opp", 0) or 0)
+    comparison = context.get("history_comparison") or {}
+
+    if not comparison:
+        return (
+            "NO SEASON BASELINE AVAILABLE — there are no completed weeks yet "
+            f"(mine: {mine}, opponent: {theirs}).\n"
+            "Do not invent a baseline and do not describe any category as a "
+            "weakness or strength on historical grounds. Reason only from the "
+            "imported roster, the live matchup, and the schedule."
+        )
+
+    header = (
+        f"Based on {mine} completed week(s) for me and {theirs} for the opponent.\n"
+        "Status values: WON / LOST are decided by the sign of Diff (Turnovers "
+        "inverted); TIED means the gap is zero so far; INFO means a volume stat "
+        "reported as makes/attempts; NO_DATA means the metric is missing on at "
+        "least one side and must not be treated as a zero."
+    )
+    if mine == 0 or theirs == 0:
+        header += (
+            "\nCAUTION: one side has no completed weeks, so the sample is "
+            "asymmetric. Treat this comparison as weak evidence."
+        )
+    return header + "\n" + _json_block(comparison)
+
+
 def build_human_prompt(context: Dict[str, Any], current_date: str) -> str:
     """Render the per-week data payload for the human turn.
 
@@ -155,7 +199,6 @@ def build_human_prompt(context: Dict[str, Any], current_date: str) -> str:
     capacity = context.get("capacity", {})
     groups = context.get("roster_by_status", {})
     rules = context.get("roster_rules", {})
-    history_weeks = context.get("history_weeks", {})
 
     max_adds = int(rules.get("max_adds", 0) or 0)
     adds_used = int(context.get("weekly_adds_used", 0) or 0)
@@ -185,9 +228,7 @@ League type: {league_type.upper()}
 {_json_block(context.get('live_comparison', {}))}
 
 ## 3. SEASON-LONG WEEKLY AVERAGES vs OPPONENT
-Based on {history_weeks.get('my', 0)} completed week(s) for me and \
-{history_weeks.get('opp', 0)} for the opponent.
-{_json_block(context.get('history_comparison', {}))}
+{_history_block(context)}
 
 ## 4. ROSTER BY HEALTH AND SLOT
 {_json_block(groups)}

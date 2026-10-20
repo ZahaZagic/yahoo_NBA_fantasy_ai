@@ -119,7 +119,7 @@ A few design notes:
 - Structured transaction output validated by Pydantic.
 - Token usage and estimated per-run cost.
 - Per-profile, per-league configuration.
-- 72 unit tests, no network required.
+- 79 unit tests, no network required.
 
 ## Requirements
 
@@ -341,6 +341,24 @@ The run prints, in order:
 
 An empty transaction list is a valid and common result — it means no move was
 justified.
+
+### Week 1 and early season
+
+At the start of a season there are no completed weeks, so there is no history to
+compare against. The agent handles this explicitly rather than papering over it:
+
+- The season comparison block is omitted and replaced with
+  `NO SEASON BASELINE AVAILABLE`, with an instruction not to invent a baseline and
+  not to call any category a weakness on historical grounds.
+- A zero gap is reported as `TIED`, never as `LOST`. A category present on only
+  one side is `NO_DATA` and is never compared against an implicit zero.
+- The model is told to reason from roster composition, games remaining, and the
+  live score instead.
+
+Expect leaner, less confident output for the first couple of weeks: player season
+averages are also zero until games have been played, so rankings and the lineup
+optimiser carry little signal until then. Early-season advice is best treated as
+"is my roster legal and healthy" rather than "which category should I punt".
 
 ## Project structure
 
