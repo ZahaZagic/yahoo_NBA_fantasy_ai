@@ -1,0 +1,70 @@
+# ---------------------------------------------------------------------------
+# Local secrets and credentials -- NEVER commit these
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# Real runtime config (rename from config.example.json)
+config.json
+
+# Yahoo OAuth consumer keys and access/refresh tokens
+auth/*
+!auth/.gitkeep
+*_token.json
+token.json
+private.json
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.python-version
+
+# ---------------------------------------------------------------------------
+# Tooling / OS
+# ---------------------------------------------------------------------------
+.idea/
+.vscode/
+.DS_Store
+*.swp
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---------------------------------------------------------------------------
+# Generated run artifacts
+# ---------------------------------------------------------------------------
+output*.txt
+final_report*.txt
+verification*.txt
+*_debug*.json
+league_settings.json
+nba_stat_definitions.json
+logs/
+*.log

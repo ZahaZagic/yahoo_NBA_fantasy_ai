@@ -1,0 +1,19 @@
+{
+  "default_profile": "my_account",
+  "llm": {
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "google/gemini-2.0-flash-001",
+    "temperature": 0.2,
+    "max_tokens": 4000,
+    "timeout_seconds": 90,
+    "max_retries": 3
+  },
+  "profiles": {
+    "my_account": {
+      "league_id": "000000",
+      "team_id": "1",
+      "game_code": "nba",
+      "league_type": "9cat"
+    }
+  }
+}
